@@ -9,4 +9,4 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build)
 
 add_executable(sha256test sha256_test.c sha256.c)
-
+add_executable(sha256sum sha256sum.c sha256.c)
