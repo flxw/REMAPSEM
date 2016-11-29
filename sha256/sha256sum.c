@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
       if (fseek(fp, 0L, SEEK_SET) != 0) { /* Error */ }
 
       /* Read the entire file into memory. */
-      size_t newLen = fread(source, sizeof(BYTE), bufsize, fp);
+      fread(source, sizeof(BYTE), bufsize, fp);
       if ( ferror( fp ) != 0 ) {
         fputs("Error reading file", stderr);
       }
@@ -44,9 +44,8 @@ int main(int argc, char** argv) {
   
   free(source);
 
-  printf("%s: ", argv[1]);
-  for (int i=0; i < SHA256_BLOCK_SIZE; ++i) printf("%x", resultBuffer[i]);
-  printf("\n");
+  for (int i=0; i < SHA256_BLOCK_SIZE; ++i) printf("%02x", resultBuffer[i]);
+  printf(" %s\n", argv[1]);
 
   return 0;
 }

@@ -1,21 +1,11 @@
-/*********************************************************************
-* Filename:   sha256.c
-* Author:     Brad Conte (brad AT bradconte.com)
-* Copyright:
-* Disclaimer: This code is presented "as is" without any guarantees.
-* Details:    Implementation of the SHA-256 hashing algorithm.
-              SHA-256 is one of the three algorithms in the SHA2
-              specification. The others, SHA-384 and SHA-512, are not
-              offered in this implementation.
-              Algorithm specification can be found here:
-               * http://csrc.nist.gov/publications/fips/fips180-2/fips180-2withchangenotice.pdf
-              This implementation uses little endian byte order.
-*********************************************************************/
-
 /*************************** HEADER FILES ***************************/
+#include "sha256.h"
 #include <stdlib.h>
 #include <memory.h>
-#include "sha256.h"
+
+#ifdef _ARCH_PPC
+#include <altivec.h>
+#endif
 
 /****************************** MACROS ******************************/
 #define ROTLEFT(a,b) (((a) << (b)) | ((a) >> (32-(b))))
@@ -23,10 +13,10 @@
 
 #define CH(x,y,z) (((x) & (y)) ^ (~(x) & (z)))
 #define MAJ(x,y,z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
-#define EP0(x) (ROTRIGHT(x,2) ^ ROTRIGHT(x,13) ^ ROTRIGHT(x,22))
-#define EP1(x) (ROTRIGHT(x,6) ^ ROTRIGHT(x,11) ^ ROTRIGHT(x,25))
-#define SIG0(x) (ROTRIGHT(x,7) ^ ROTRIGHT(x,18) ^ ((x) >> 3))
-#define SIG1(x) (ROTRIGHT(x,17) ^ ROTRIGHT(x,19) ^ ((x) >> 10))
+#define EP0(x) (ROTRIGHT(x,2) ^ ROTRIGHT(x,13) ^ ROTRIGHT(x,22)) /* SIGMA0 */
+#define EP1(x) (ROTRIGHT(x,6) ^ ROTRIGHT(x,11) ^ ROTRIGHT(x,25)) /* SIGMA1 */
+#define SIG0(x) (ROTRIGHT(x,7) ^ ROTRIGHT(x,18) ^ ((x) >> 3))    /* sigma0 */
+#define SIG1(x) (ROTRIGHT(x,17) ^ ROTRIGHT(x,19) ^ ((x) >> 10))  /* sigma1 */
 
 /**************************** VARIABLES *****************************/
 static const WORD k[64] = {
@@ -45,10 +35,38 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
 {
   WORD a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
 
-  for (i = 0, j = 0; i < 16; ++i, j += 4)
+#ifdef _ARCH_PPC
+  /* unsigned int is a WORD - macro expansion didn't work here */
+  vector unsigned int s0_result;
+  vector unsigned int s1_result;
+  vector unsigned int v_abcd, v_efgh;
+#endif
+
+  // copy chunk into first 16 words w[0..15] of the message schedule array
+  for (i = 0, j = 0; i < 16; ++i, j += 4) {
     m[i] = (data[j] << 24) | (data[j + 1] << 16) | (data[j + 2] << 8) | (data[j + 3]);
-  for ( ; i < 64; ++i)
+  }
+
+  // Extend the first 16 words into the remaining 48 words w[16..63] of the message schedule array:
+#ifdef _ARCH_PPC
+  for ( ; i < 64; i+=2) {
+    // There is a also an interdependency right here
+    // Using previous values to build the result of the current. Maybe rotate vectors around?
+    vector unsigned int s0_input = { m[i-15], m[i-14], 0, 0 };
+    vector unsigned int s1_input = { m[i-2 ], m[i-1 ], 0, 0 };
+
+    s0_result = __builtin_crypto_vshasigmaw(s0_input,0,0);
+    s1_result = __builtin_crypto_vshasigmaw(s1_input,0,1);
+
+    m[i]   = s1_result[0] + m[i-7] + s0_result[0] + m[i-16];
+    m[i+1] = s1_result[1] + m[i-6] + s0_result[1] + m[i-15];
+  }
+#else
+  for ( ; i < 64; ++i) {
+    printf("m[%i] = SIG1(m[%i]) + m[%i] + SIG0(m[%i]) + m[%i]", i-2, i-7, i-15, i-16);
     m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
+  }
+#endif
 
   a = ctx->state[0];
   b = ctx->state[1];
@@ -59,9 +77,24 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
   g = ctx->state[6];
   h = ctx->state[7];
 
+#ifdef _ARCH_PPC
+  /* The below needs to be ported into SIMD thinking...somehow
+   * 
+   * What about putting a...h into a vector before the loop
+   * Inside the loop:
+   * Execute EP1 and EP0 on a single piece of data and leave the rest blank
+   *  ...
+   *  do vec_perm to manage reassignments and do the two additions
+   *
+   */
+//  v_abcd = {a,b,c,d};
+//  v_efgh = {e,f,g,h}
+
   for (i = 0; i < 64; ++i) {
     t1 = h + EP1(e) + CH(e,f,g) + k[i] + m[i];
     t2 = EP0(a) + MAJ(a,b,c);
+
+
     h = g;
     g = f;
     f = e;
@@ -71,6 +104,22 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
     b = a;
     a = t1 + t2;
   }
+#else
+  for (i = 0; i < 64; ++i) {
+    t1 = h + EP1(e) + CH(e,f,g) + k[i] + m[i];
+    t2 = EP0(a) + MAJ(a,b,c);
+
+
+    h = g;
+    g = f;
+    f = e;
+    e = d + t1;
+    d = c;
+    c = b;
+    b = a;
+    a = t1 + t2;
+  }
+#endif
 
   ctx->state[0] += a;
   ctx->state[1] += b;
