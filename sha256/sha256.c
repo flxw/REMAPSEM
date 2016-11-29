@@ -52,18 +52,17 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
   for ( ; i < 64; i+=2) {
     // There is a also an interdependency right here
     // Using previous values to build the result of the current. Maybe rotate vectors around?
-    vector unsigned int s0_input = { m[i-15], m[i-14], 0, 0 };
     vector unsigned int s1_input = { m[i-2 ], m[i-1 ], 0, 0 };
+    vector unsigned int s0_input = { m[i-15], m[i-14], 0, 0 };
 
     s0_result = __builtin_crypto_vshasigmaw(s0_input,0,0);
-    s1_result = __builtin_crypto_vshasigmaw(s1_input,0,1);
+    s1_result = __builtin_crypto_vshasigmaw(s1_input,0,15); //or 3 to only fill in the first 2 values correctly
 
     m[i]   = s1_result[0] + m[i-7] + s0_result[0] + m[i-16];
     m[i+1] = s1_result[1] + m[i-6] + s0_result[1] + m[i-15];
   }
 #else
   for ( ; i < 64; ++i) {
-    printf("m[%i] = SIG1(m[%i]) + m[%i] + SIG0(m[%i]) + m[%i]", i-2, i-7, i-15, i-16);
     m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
   }
 #endif
