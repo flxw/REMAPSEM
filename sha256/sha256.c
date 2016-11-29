@@ -33,13 +33,14 @@ static const WORD k[64] = {
 /*********************** FUNCTION DEFINITIONS ***********************/
 void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
 {
-  WORD a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
+  WORD i, j, t1,t2,m[64];
 
 #ifdef _ARCH_PPC
   /* unsigned int is a WORD - macro expansion didn't work here */
   vector unsigned int s0_result;
   vector unsigned int s1_result;
-  vector unsigned int v_abcd, v_efgh;
+#else
+  WORD a, b, c, d, e, f, g, h;
 #endif
 
   // copy chunk into first 16 words w[0..15] of the message schedule array
@@ -65,7 +66,6 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
   for ( ; i < 64; ++i) {
     m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
   }
-#endif
 
   a = ctx->state[0];
   b = ctx->state[1];
@@ -75,6 +75,7 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
   f = ctx->state[5];
   g = ctx->state[6];
   h = ctx->state[7];
+#endif
 
 #ifdef _ARCH_PPC
   /* The below needs to be ported into SIMD thinking...somehow
@@ -84,26 +85,34 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
    * Execute EP1 and EP0 on a single piece of data and leave the rest blank
    *  ...
    *  do vec_perm to manage reassignments and do the two additions
-   *
    */
-//  v_abcd = {a,b,c,d};
-//  v_efgh = {e,f,g,h}
+  vector unsigned int v_abcd  = {ctx->state[0], ctx->state[1], ctx->state[2], ctx->state[3]};
+  vector unsigned int v_efgh  = {ctx->state[4], ctx->state[5], ctx->state[6], ctx->state[7]};
+  vector unsigned int v_empty = {0,0,0,0};
+  
+  vector unsigned char shuffle_pattern = {16,16,16,16, 0,1,2,3, 4,5,6,7, 8,9,10,11};
 
   for (i = 0; i < 64; ++i) {
-    t1 = h + EP1(e) + CH(e,f,g) + k[i] + m[i];
-    t2 = EP0(a) + MAJ(a,b,c);
+    t1 = v_efgh[3] + EP1(v_efgh[0]) + CH(v_efgh[0],v_efgh[1],v_efgh[2]) + k[i] + m[i];
+    t2 = EP0(v_abcd[0]) + MAJ(v_abcd[0],v_abcd[1],v_abcd[2]);
 
-
-    h = g;
-    g = f;
-    f = e;
-    e = d + t1;
-    d = c;
-    c = b;
-    b = a;
-    a = t1 + t2;
+    v_efgh = vec_perm(v_efgh, v_empty, shuffle_pattern);
+    v_efgh[0] = v_abcd[3] + t1;
+    v_abcd = vec_perm(v_abcd, v_empty, shuffle_pattern);
+    v_abcd[0] = t1 + t2;
   }
+
+  ctx->state[0] += v_abcd[0];
+  ctx->state[1] += v_abcd[1];
+  ctx->state[2] += v_abcd[2];
+  ctx->state[3] += v_abcd[3];
+  ctx->state[4] += v_efgh[0];
+  ctx->state[5] += v_efgh[1];
+  ctx->state[6] += v_efgh[2];
+  ctx->state[7] += v_efgh[3];
+
 #else
+
   for (i = 0; i < 64; ++i) {
     t1 = h + EP1(e) + CH(e,f,g) + k[i] + m[i];
     t2 = EP0(a) + MAJ(a,b,c);
@@ -118,8 +127,6 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
     b = a;
     a = t1 + t2;
   }
-#endif
-
   ctx->state[0] += a;
   ctx->state[1] += b;
   ctx->state[2] += c;
@@ -128,6 +135,7 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
   ctx->state[5] += f;
   ctx->state[6] += g;
   ctx->state[7] += h;
+#endif
 }
 
 void sha256_init(SHA256_CTX *ctx)
