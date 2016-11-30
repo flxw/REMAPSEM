@@ -1,5 +1,5 @@
 /*************************** HEADER FILES ***************************/
-#include "sha256.h"
+#include "vsha256.h"
 #include <stdlib.h>
 #include <memory.h>
 
@@ -30,7 +30,10 @@ static const WORD k[64] = {
 void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
 {
   WORD i, j, t1,t2,m[64];
-  WORD a, b, c, d, e, f, g, h;
+
+  /* unsigned int is a WORD - macro expansion didn't work here */
+  vector unsigned int s0_result;
+  vector unsigned int s1_result;
 
   // copy chunk into first 16 words w[0..15] of the message schedule array
   for (i = 0, j = 0; i < 16; ++i, j += 4) {
@@ -38,55 +41,60 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
   }
 
   // Extend the first 16 words into the remaining 48 words w[16..63] of the message schedule array:
-  for ( ; i < 64; ++i) {
-    m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
+  for ( ; i < 64; i+=2) {
+    // There is a also an interdependency right here
+    // Using previous values to build the result of the current
+    // Maybe rotate vectors around?
+    vector unsigned int s1_input = { m[i-2 ], m[i-1 ], 0, 0 };
+    vector unsigned int s0_input = { m[i-15], m[i-14], 0, 0 };
+
+    s0_result = __builtin_crypto_vshasigmaw(s0_input,0,0);
+    // or 3 to only fill in the first 2 values correctly
+    s1_result = __builtin_crypto_vshasigmaw(s1_input,0,15); 
+
+    m[i]   = s1_result[0] + m[i-7] + s0_result[0] + m[i-16];
+    m[i+1] = s1_result[1] + m[i-6] + s0_result[1] + m[i-15];
   }
 
-  a = ctx->state[0];
-  b = ctx->state[1];
-  c = ctx->state[2];
-  d = ctx->state[3];
-  e = ctx->state[4];
-  f = ctx->state[5];
-  g = ctx->state[6];
-  h = ctx->state[7];
+  /* The below needs to be ported into SIMD thinking...somehow
+   * 
+   * What about putting a...h into a vector before the loop
+   * Inside the loop:
+   * Execute EP1 and EP0 on a single piece of data and leave the rest blank
+   *  ...
+   *  do vec_perm to manage reassignments and do the two additions
+   */
+  vector unsigned int v_abcd  = ctx->state[0];
+  vector unsigned int v_efgh  = ctx->state[1];
+  vector unsigned int v_empty = {0,0,0,0};
+  vector unsigned char shuffle_pattern = {16,16,16,16, 0,1,2,3, 4,5,6,7, 8,9,10,11};
 
   for (i = 0; i < 64; ++i) {
-    t1 = h + EP1(e) + CH(e,f,g) + k[i] + m[i];
-    t2 = EP0(a) + MAJ(a,b,c);
+    t1 = v_efgh[3] + EP1(v_efgh[0]) + CH(v_efgh[0],v_efgh[1],v_efgh[2]) + k[i] + m[i];
+    t2 = EP0(v_abcd[0]) + MAJ(v_abcd[0],v_abcd[1],v_abcd[2]);
 
-
-    h = g;
-    g = f;
-    f = e;
-    e = d + t1;
-    d = c;
-    c = b;
-    b = a;
-    a = t1 + t2;
+    v_efgh = vec_perm(v_efgh, v_empty, shuffle_pattern);
+    v_efgh[0] = v_abcd[3] + t1;
+    v_abcd = vec_perm(v_abcd, v_empty, shuffle_pattern);
+    v_abcd[0] = t1 + t2;
   }
-  ctx->state[0] += a;
-  ctx->state[1] += b;
-  ctx->state[2] += c;
-  ctx->state[3] += d;
-  ctx->state[4] += e;
-  ctx->state[5] += f;
-  ctx->state[6] += g;
-  ctx->state[7] += h;
+
+  ctx->state[0] = vec_add(ctx->state[0], v_abcd);
+  ctx->state[1] = vec_add(ctx->state[1], v_efgh);
 }
 
 void sha256_init(SHA256_CTX *ctx)
 {
   ctx->datalen = 0;
   ctx->bitlen = 0;
-  ctx->state[0] = 0x6a09e667;
-  ctx->state[1] = 0xbb67ae85;
-  ctx->state[2] = 0x3c6ef372;
-  ctx->state[3] = 0xa54ff53a;
-  ctx->state[4] = 0x510e527f;
-  ctx->state[5] = 0x9b05688c;
-  ctx->state[6] = 0x1f83d9ab;
-  ctx->state[7] = 0x5be0cd19;
+  ctx->state[0][0] = 0x6a09e667;
+  ctx->state[0][1] = 0xbb67ae85;
+  ctx->state[0][2] = 0x3c6ef372;
+  ctx->state[0][3] = 0xa54ff53a;
+  ctx->state[1][0] = 0x510e527f;
+  ctx->state[1][1] = 0x9b05688c;
+  ctx->state[1][2] = 0x1f83d9ab;
+  ctx->state[1][3] = 0x5be0cd19;
 }
 
 void sha256_update(SHA256_CTX *ctx, const BYTE data[], size_t len)
@@ -136,13 +144,13 @@ void sha256_final(SHA256_CTX *ctx, BYTE hash[])
   // Since this implementation uses little endian byte ordering and SHA uses big endian,
   // reverse all the bytes when copying the final state to the output hash.
   for (i = 0; i < 4; ++i) {
-    hash[i]      = (ctx->state[0] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 4]  = (ctx->state[1] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 8]  = (ctx->state[2] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 12] = (ctx->state[3] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 16] = (ctx->state[4] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 20] = (ctx->state[5] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 24] = (ctx->state[6] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 28] = (ctx->state[7] >> (24 - i * 8)) & 0x000000ff;
+    hash[i]      = (ctx->state[0][0] >> (24 - i * 8)) & 0x000000ff;
+    hash[i + 4]  = (ctx->state[0][1] >> (24 - i * 8)) & 0x000000ff;
+    hash[i + 8]  = (ctx->state[0][2] >> (24 - i * 8)) & 0x000000ff;
+    hash[i + 12] = (ctx->state[0][3] >> (24 - i * 8)) & 0x000000ff;
+    hash[i + 16] = (ctx->state[1][0] >> (24 - i * 8)) & 0x000000ff;
+    hash[i + 20] = (ctx->state[1][1] >> (24 - i * 8)) & 0x000000ff;
+    hash[i + 24] = (ctx->state[1][2] >> (24 - i * 8)) & 0x000000ff;
+    hash[i + 28] = (ctx->state[1][3] >> (24 - i * 8)) & 0x000000ff;
   }
 }
