@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <memory.h>
 
-#ifdef _ARCH_PPC
+#ifdef VECTORIZED
 #include <altivec.h>
 #endif
 
@@ -35,7 +35,7 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
 {
   WORD i, j, t1,t2,m[64];
 
-#ifdef _ARCH_PPC
+#ifdef VECTORIZED
   /* unsigned int is a WORD - macro expansion didn't work here */
   vector unsigned int s0_result;
   vector unsigned int s1_result;
@@ -49,7 +49,7 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
   }
 
   // Extend the first 16 words into the remaining 48 words w[16..63] of the message schedule array:
-#ifdef _ARCH_PPC
+#ifdef VECTORIZED
   for ( ; i < 64; i+=2) {
     // There is a also an interdependency right here
     // Using previous values to build the result of the current. Maybe rotate vectors around?
@@ -77,7 +77,7 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
   h = ctx->state[7];
 #endif
 
-#ifdef _ARCH_PPC
+#ifdef VECTORIZED
   /* The below needs to be ported into SIMD thinking...somehow
    * 
    * What about putting a...h into a vector before the loop

@@ -14,11 +14,17 @@ else (CMAKE_SYSTE_PROCESSOR MATCHES "ppc")
   MESSAGE("Compiling on a POWER-based system")
 endif ()
 
-if (X86)
+IF (x86)
   set(CMAKE_C_FLAGS "-g -Wall")
-else (PPC)
+ELSE (ppc)
   set(CMAKE_C_FLAGS "-g -Wall -maltivec -mabi=altivec")
-endif ()
+ENDIF ()
 
-add_executable(sha256sum sha256sum.c sha256.c)
-add_executable(research research.c)
+ADD_EXECUTABLE(sha256sum sha256sum.c sha256.c)
+ADD_EXECUTABLE(research research.c)
+
+IF (PPC)
+  ADD_EXECUTABLE(vsha256sum sha256sum.c sha256.c)
+  SET_TARGET_PROPERTIES(vsha256sum PROPERTIES COMPILE_DEFINITIONS "VECTORIZED=TRUE")
+ENDIF()
+
