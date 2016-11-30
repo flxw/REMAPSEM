@@ -56,14 +56,6 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
     m[i+1] = s1_result[1] + m[i-6] + s0_result[1] + m[i-15];
   }
 
-  /* The below needs to be ported into SIMD thinking...somehow
-   * 
-   * What about putting a...h into a vector before the loop
-   * Inside the loop:
-   * Execute EP1 and EP0 on a single piece of data and leave the rest blank
-   *  ...
-   *  do vec_perm to manage reassignments and do the two additions
-   */
   vector unsigned int v_abcd  = ctx->state[0];
   vector unsigned int v_efgh  = ctx->state[1];
   vector unsigned int v_empty = {0,0,0,0};
