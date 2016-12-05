@@ -26,14 +26,17 @@ static const WORD k[64] = {
   0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
 };
 
+static const vector unsigned int v_empty = {0,0,0,0};
+static const vector unsigned char shuffle_pattern = {16,16,16,16, 0,1,2,3, 4,5,6,7, 8,9,10,11};
+
 /*********************** FUNCTION DEFINITIONS ***********************/
 void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
 {
   WORD i, j, t1,t2,m[64];
 
   /* unsigned int is a WORD - macro expansion didn't work here */
-  vector unsigned int s0_result;
-  vector unsigned int s1_result;
+  vector unsigned int v_result;
+  vector unsigned int v_input;
 
   // copy chunk into first 16 words w[0..15] of the message schedule array
   for (i = 0, j = 0; i < 16; ++i, j += 4) {
@@ -42,24 +45,19 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
 
   // Extend the first 16 words into the remaining 48 words w[16..63] of the message schedule array:
   for ( ; i < 64; i+=2) {
-    // There is a also an interdependency right here
-    // Using previous values to build the result of the current
-    // Maybe rotate vectors around?
+    // s1, s1, s0, s0
+    v_input = (vector unsigned int) { m[i-2 ], m[i-1 ], m[i-15], m[i-14] };
     vector unsigned int s1_input = { m[i-2 ], m[i-1 ], 0, 0 };
     vector unsigned int s0_input = { m[i-15], m[i-14], 0, 0 };
 
-    s0_result = __builtin_crypto_vshasigmaw(s0_input,0,0);
-    // or 3 to only fill in the first 2 values correctly
-    s1_result = __builtin_crypto_vshasigmaw(s1_input,0,15); 
+    v_result = __builtin_crypto_vshasigmaw(v_input,0,3); 
 
-    m[i]   = s1_result[0] + m[i-7] + s0_result[0] + m[i-16];
-    m[i+1] = s1_result[1] + m[i-6] + s0_result[1] + m[i-15];
+    m[i]   = v_result[0] + m[i-7] + v_result[2] + m[i-16];
+    m[i+1] = v_result[1] + m[i-6] + v_result[3] + m[i-15];
   }
 
   vector unsigned int v_abcd  = ctx->state[0];
   vector unsigned int v_efgh  = ctx->state[1];
-  vector unsigned int v_empty = {0,0,0,0};
-  vector unsigned char shuffle_pattern = {16,16,16,16, 0,1,2,3, 4,5,6,7, 8,9,10,11};
 
   for (i = 0; i < 64; ++i) {
     t1 = v_efgh[3] + EP1(v_efgh[0]) + CH(v_efgh[0],v_efgh[1],v_efgh[2]) + k[i] + m[i];
