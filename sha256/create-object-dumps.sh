@@ -1,6 +1,6 @@
 #!/bin/bash
 
-FILES=( "sha256" "vsha256" "simdsha256" )
+FILES=( "sha256" "vsha256" )
 
 for FILE in "${FILES[@]}"; do
   gcc -c -g $FILE.c
