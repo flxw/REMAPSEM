@@ -9,6 +9,8 @@
 
 #define CH(x,y,z) (((x) & (y)) ^ (~(x) & (z)))
 #define MAJ(x,y,z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
+#define EP0(x) (ROTRIGHT(x,2) ^ ROTRIGHT(x,13) ^ ROTRIGHT(x,22)) /* SIGMA0 */
+#define EP1(x) (ROTRIGHT(x,6) ^ ROTRIGHT(x,11) ^ ROTRIGHT(x,25)) /* SIGMA1 */
 
 /**************************** VARIABLES *****************************/
 static const WORD k[64] = {
@@ -21,10 +23,9 @@ static const WORD k[64] = {
   0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
   0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
 };
-const vector unsigned int v_empty = {0,0,0,0};
-const vector unsigned char shuffle_pattern = {16,16,16,16, 0,1,2,3, 4,5,6,7, 8,9,10,11};
-const vector unsigned int and_pattern =  { 0x000000ff,0x000000ff,
-                                           0x000000ff,0x000000ff };
+static const vector unsigned int v_empty = {0,0,0,0};
+static const vector unsigned char shuffle_pattern = {16,16,16,16, 0,1,2,3, 4,5,6,7, 8,9,10,11};
+static const vector unsigned int and_pattern =  { 0x000000ff,0x000000ff, 0x000000ff,0x000000ff };
 
 
 
@@ -59,12 +60,8 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
   vector unsigned int v_efgh  = ctx->state[1];
 
   for (i = 0; i < 64; ++i) {
-    vector unsigned int sigma_input  = {v_efgh[0], v_abcd[0],0,0};
-
-    sigma_result = __builtin_crypto_vshasigmaw(sigma_input,1,1);
-
-    t1 = v_efgh[3] + sigma_result[0] + CH(v_efgh[0],v_efgh[1],v_efgh[2]) + k[i] + m[i];
-    t2 = sigma_result[1] + MAJ(v_abcd[0],v_abcd[1],v_abcd[2]);
+    t1 = v_efgh[3] + EP1(v_efgh[0]) + CH(v_efgh[0],v_efgh[1],v_efgh[2]) + k[i] + m[i];
+    t2 = EP0(v_abcd[0]) + MAJ(v_abcd[0],v_abcd[1],v_abcd[2]);
 
     v_efgh = vec_perm(v_efgh, v_empty, shuffle_pattern);
     v_efgh[0] = v_abcd[3] + t1;
