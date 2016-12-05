@@ -60,7 +60,9 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
 
   for (i = 0; i < 64; ++i) {
     vector unsigned int sigma_input  = {v_efgh[0], v_abcd[0],0,0};
+
     sigma_result = __builtin_crypto_vshasigmaw(sigma_input,1,1);
+
     t1 = v_efgh[3] + sigma_result[0] + CH(v_efgh[0],v_efgh[1],v_efgh[2]) + k[i] + m[i];
     t2 = sigma_result[1] + MAJ(v_abcd[0],v_abcd[1],v_abcd[2]);
 
