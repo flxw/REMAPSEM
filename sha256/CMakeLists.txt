@@ -25,6 +25,5 @@ ADD_EXECUTABLE(research research.c)
 
 IF (PPC)
   ADD_EXECUTABLE(vsha256sum vsha256sum.c vsha256.c)
-  ADD_EXECUTABLE(simdsha256sum simdsha256sum.c simdsha256.c)
 ENDIF()
 

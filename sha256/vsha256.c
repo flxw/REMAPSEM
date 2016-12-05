@@ -11,8 +11,6 @@
 #define MAJ(x,y,z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
 #define EP0(x) (ROTRIGHT(x,2) ^ ROTRIGHT(x,13) ^ ROTRIGHT(x,22)) /* SIGMA0 */
 #define EP1(x) (ROTRIGHT(x,6) ^ ROTRIGHT(x,11) ^ ROTRIGHT(x,25)) /* SIGMA1 */
-#define SIG0(x) (ROTRIGHT(x,7) ^ ROTRIGHT(x,18) ^ ((x) >> 3))    /* sigma0 */
-#define SIG1(x) (ROTRIGHT(x,17) ^ ROTRIGHT(x,19) ^ ((x) >> 10))  /* sigma1 */
 
 /**************************** VARIABLES *****************************/
 static const WORD k[64] = {
@@ -25,9 +23,12 @@ static const WORD k[64] = {
   0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
   0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
 };
-
 static const vector unsigned int v_empty = {0,0,0,0};
 static const vector unsigned char shuffle_pattern = {16,16,16,16, 0,1,2,3, 4,5,6,7, 8,9,10,11};
+static const vector unsigned int and_pattern =  { 0x000000ff,0x000000ff, 0x000000ff,0x000000ff };
+
+
+
 
 /*********************** FUNCTION DEFINITIONS ***********************/
 void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
@@ -35,8 +36,7 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
   WORD i, j, t1,t2,m[64];
 
   /* unsigned int is a WORD - macro expansion didn't work here */
-  vector unsigned int v_result;
-  vector unsigned int v_input;
+  vector unsigned int sigma_result;
 
   // copy chunk into first 16 words w[0..15] of the message schedule array
   for (i = 0, j = 0; i < 16; ++i, j += 4) {
@@ -45,15 +45,15 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
 
   // Extend the first 16 words into the remaining 48 words w[16..63] of the message schedule array:
   for ( ; i < 64; i+=2) {
-    // s1, s1, s0, s0
-    v_input = (vector unsigned int) { m[i-2 ], m[i-1 ], m[i-15], m[i-14] };
-    vector unsigned int s1_input = { m[i-2 ], m[i-1 ], 0, 0 };
-    vector unsigned int s0_input = { m[i-15], m[i-14], 0, 0 };
+    // There is a also an interdependency right here
+    // Using previous values to build the result of the current
+    // Maybe rotate vectors around?
+    vector unsigned int sigma_input = { m[i-2 ], m[i-1 ], m[i-15], m[i-14] };
 
-    v_result = __builtin_crypto_vshasigmaw(v_input,0,3); 
+    sigma_result = __builtin_crypto_vshasigmaw(sigma_input, 0, 3);
 
-    m[i]   = v_result[0] + m[i-7] + v_result[2] + m[i-16];
-    m[i+1] = v_result[1] + m[i-6] + v_result[3] + m[i-15];
+    m[i]   = sigma_result[0] + m[i-7] + sigma_result[2] + m[i-16];
+    m[i+1] = sigma_result[1] + m[i-6] + sigma_result[3] + m[i-15];
   }
 
   vector unsigned int v_abcd  = ctx->state[0];
@@ -133,14 +133,20 @@ void sha256_final(SHA256_CTX *ctx, BYTE hash[])
 
   // Since this implementation uses little endian byte ordering and SHA uses big endian,
   // reverse all the bytes when copying the final state to the output hash.
+  vector unsigned int shift_result;
+
   for (i = 0; i < 4; ++i) {
-    hash[i]      = (ctx->state[0][0] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 4]  = (ctx->state[0][1] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 8]  = (ctx->state[0][2] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 12] = (ctx->state[0][3] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 16] = (ctx->state[1][0] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 20] = (ctx->state[1][1] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 24] = (ctx->state[1][2] >> (24 - i * 8)) & 0x000000ff;
-    hash[i + 28] = (ctx->state[1][3] >> (24 - i * 8)) & 0x000000ff;
+    vector unsigned int shifter = { 24-i*8, 24-i*8, 24-i*8, 24-i*8 };
+    shift_result = vec_and(vec_sr(ctx->state[0], shifter), and_pattern);
+    hash[i]      = shift_result[0];
+    hash[i + 4]  = shift_result[1];
+    hash[i + 8]  = shift_result[2];
+    hash[i + 12] = shift_result[3];
+
+    shift_result = vec_and(vec_sr(ctx->state[1], shifter), and_pattern);
+    hash[i + 16] = shift_result[0];
+    hash[i + 20] = shift_result[1];
+    hash[i + 24] = shift_result[2];
+    hash[i + 28] = shift_result[3];
   }
 }

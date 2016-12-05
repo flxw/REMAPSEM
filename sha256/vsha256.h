@@ -6,11 +6,12 @@
 * Details:    Defines the API for the corresponding SHA1 implementation.
 *********************************************************************/
 
-#ifndef SHA256_H
-#define SHA256_H
+#ifndef VSHA256_H
+#define VSHA256_H
 
 /*************************** HEADER FILES ***************************/
 #include <stddef.h>
+#include <altivec.h>
 
 /****************************** MACROS ******************************/
 #define SHA256_BLOCK_SIZE 32            // SHA256 outputs a 32 byte digest
@@ -23,7 +24,7 @@ typedef struct {
 	BYTE data[64];
 	WORD datalen;
 	unsigned long long bitlen;
-	WORD state[8];
+	vector unsigned int state[2];
 } SHA256_CTX;
 
 /*********************** FUNCTION DECLARATIONS **********************/
@@ -31,4 +32,4 @@ void sha256_init(SHA256_CTX *ctx);
 void sha256_update(SHA256_CTX *ctx, const BYTE data[], size_t len);
 void sha256_final(SHA256_CTX *ctx, BYTE hash[]);
 
-#endif   // SHA256_H
+#endif   // VSHA256_H
