@@ -9,7 +9,7 @@ endif
 ifndef STREAM_ARRAY_SIZE
   CFLAGS = -O2 -fopenmp
 else
-  CFLAGS = -O2 -fopenmp -mcmodel=medium -DSTREAM_ARRAY_SIZE=$(STREAM_ARRAY_SIZE)
+  CFLAGS = -O2 -fopenmp -mcmodel=large -DSTREAM_ARRAY_SIZE=$(STREAM_ARRAY_SIZE)
 endif
 
 ifndef STREAM_ARRAY_SIZE
