@@ -2,8 +2,7 @@
 
 EXECUTABLE=$1
 
-for ((i=0; i<500; i+=50)); do
-  echo "vvvvvvvvvvvvvvvvvvvvv"
-  /usr/bin/time build/$EXECUTABLE ~/$i.zeroes
-  echo "^^^^^^^^^^^^^^^^^^^^^"
+for ((i=0; i<1500; i+=50)); do
+  echo -n "$i,"
+  /usr/bin/time --format %E build/$EXECUTABLE ~/$i.zeroes > /dev/null
 done
