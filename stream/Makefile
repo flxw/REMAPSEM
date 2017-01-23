@@ -6,10 +6,14 @@ ifndef FC
   FC = gfortran-4.9
 endif
 
-ifndef STREAM_ARRAY_SIZE
-  CFLAGS = -O2 -fopenmp
-else
-  CFLAGS = -O2 -fopenmp -mcmodel=large -DSTREAM_ARRAY_SIZE=$(STREAM_ARRAY_SIZE) -DHEAP=1
+CFLAGS = -O2 -fopenmp
+
+ifdef STREAM_ARRAY_SIZE
+  CFLAGS += -mcmodel=large -DSTREAM_ARRAY_SIZE=$(STREAM_ARRAY_SIZE)
+endif
+
+ifdef HEAP
+  CFLAGS += -DHEAP=1
 endif
 
 ifndef STREAM_ARRAY_SIZE

@@ -46,6 +46,7 @@
 # include <float.h>
 # include <limits.h>
 # include <sys/time.h>
+# include <stdlib.h>
 
 /*-----------------------------------------------------------------------
  * INSTRUCTIONS:
@@ -180,6 +181,8 @@
 static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
 			b[STREAM_ARRAY_SIZE+OFFSET],
 			c[STREAM_ARRAY_SIZE+OFFSET];
+#else
+    STREAM_TYPE	*a, *b, *c;
 #endif
 
 static double	avgtime[4] = {0}, maxtime[4] = {0},
@@ -217,7 +220,6 @@ main()
     double		t, times[4][NTIMES];
 
 #ifdef HEAP
-    STREAM_TYPE	*a, *b, *c;
     a = (STREAM_TYPE *) malloc (sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE+OFFSET);
     b = (STREAM_TYPE *) malloc (sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE+OFFSET);
     c = (STREAM_TYPE *) malloc (sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE+OFFSET);
