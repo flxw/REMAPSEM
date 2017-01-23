@@ -50,7 +50,11 @@ void sha256_transform(SHA256_CTX *ctx, const BYTE data[])
     // Maybe rotate vectors around?
     vector unsigned int sigma_input = { m[i-2 ], m[i-1 ], m[i-15], m[i-14] };
 
+#if defined __xlC__
+    sigma_result = __vshasigmaw(sigma_input, 0, 3);
+#elif defined __GNUC__
     sigma_result = __builtin_crypto_vshasigmaw(sigma_input, 0, 3);
+#endif
 
     m[i]   = sigma_result[0] + m[i-7] + sigma_result[2] + m[i-16];
     m[i+1] = sigma_result[1] + m[i-6] + sigma_result[3] + m[i-15];
