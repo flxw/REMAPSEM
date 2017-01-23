@@ -16,6 +16,10 @@ ifdef HEAP
   CFLAGS += -DHEAP=1
 endif
 
+ifdef AIX64
+  CFLAGS += -maix64
+endif
+
 ifndef STREAM_ARRAY_SIZE
   FFLAGS = -O2 -fopenmp
 else
