@@ -24,7 +24,7 @@ ELSE (ppc)
   IF(CMAKE_C_OMPILER_ID STREQUAL "gcc")
     SET(CMAKE_C_FLAGS "-g -Wall -maltivec -mabi=altivec")
   ELSE ()
-    SET(CMAKE_C_FLAGS "-qaltivec -qarch=auto")
+    SET(CMAKE_C_FLAGS "-g -qaltivec -qarch=auto -O4")
   ENDIF ()
 ENDIF ()
 
