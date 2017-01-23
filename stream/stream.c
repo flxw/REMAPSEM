@@ -176,9 +176,11 @@
 #define STREAM_TYPE double
 #endif
 
+#ifndef HEAP
 static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
 			b[STREAM_ARRAY_SIZE+OFFSET],
 			c[STREAM_ARRAY_SIZE+OFFSET];
+#endif
 
 static double	avgtime[4] = {0}, maxtime[4] = {0},
 		mintime[4] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
@@ -213,6 +215,13 @@ main()
     ssize_t		j;
     STREAM_TYPE		scalar;
     double		t, times[4][NTIMES];
+
+#ifdef HEAP
+    STREAM_TYPE	*a, *b, *c;
+    a = (STREAM_TYPE *) malloc (sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE+OFFSET);
+    b = (STREAM_TYPE *) malloc (sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE+OFFSET);
+    c = (STREAM_TYPE *) malloc (sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE+OFFSET);
+#endif
 
     /* --- SETUP --- determine precision and check timing --- */
 
